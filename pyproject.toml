@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "amgm"
 version = "0.1.0"
 description = "SEBx asset management"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 
 dependencies = [
     "packaging",
@@ -14,7 +14,7 @@ dependencies = [
     "matplotlib",
     "numba",
     "pandas",
-    "polars",
+    "polars-lts-cpu",
     "pyarrow",
     "seaborn",
     "statsmodels",
