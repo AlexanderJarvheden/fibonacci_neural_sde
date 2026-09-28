@@ -172,12 +172,13 @@ class NeuralSDEMoE(nn.Module):
       - Hover Expert (Bounded drift, low volatility)
     """
 
-    def __init__(self, lookback_window, num_features=7, hidden_sizes=(64, 32), output_size=1, gate_temperature=1.0):
+    def __init__(self, lookback_window, num_features=7, hidden_sizes=(64, 32), output_size=1, gate_temperature=1.0, num_ma_features=0):
         super().__init__()
         self.gate_temperature = gate_temperature
 
         self.lookback_window = lookback_window
         self.num_features = num_features
+        self.num_ma_features = num_ma_features
 
         # Shared or independent backbone feature extractor
         layers = [nn.Linear(lookback_window, hidden_sizes[0]), nn.ReLU()]
@@ -185,7 +186,7 @@ class NeuralSDEMoE(nn.Module):
             layers += [nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]), nn.ReLU()]
         
         self.encoder = nn.Sequential(*layers)
-        h_dim = hidden_sizes[-1] + num_features
+        h_dim = hidden_sizes[-1] + num_features + num_ma_features
 
         # 1. Gating Network (Outputs 3 logits)
         self.gate_head = GateHead(h_dim, hidden_dim=64, num_experts=3)
@@ -200,11 +201,12 @@ class NeuralSDEMoE(nn.Module):
         self.sigma_break_head  = ExpertHead(h_dim, hidden_dim=32, out_dim=output_size)
         self.sigma_hover_head  = ExpertHead(h_dim, hidden_dim=32, out_dim=output_size)
 
-    def forward(self, x_hist, f_t):
+    def forward(self, x_hist, f_t, ma_t):
         """
         x_hist: (batch, lookback_window)
         f_t: (batch, 7) -> assumed signed distances: f_t_k = X_t - L_k
                            (If f_t are absolute distances, pass sign separately)
+        ma_t: (batch, num_ma_features) normalized distance from the 20-day moving average
         """
         # -------------------------------------------------------------
         # Step A: Identify Closest Fib Level & Direction for Bounce
@@ -235,7 +237,11 @@ class NeuralSDEMoE(nn.Module):
         Z_t = self.encoder(x_hist)  # Shape: (batch_size, hidden_dim)
         
         # 2. Concatenate latent path vector with instantaneous normalized features
-        h = torch.cat([Z_t, f_t], dim=1)  # Shape: (batch_size, hidden_dim + feature_dim)
+        #h = torch.cat([Z_t, f_t, ma_t], dim=1)  # Shape: (batch_size, hidden_dim + feature_dim)
+        if self.num_ma_features > 0:
+            h = torch.cat([Z_t, f_t, ma_t], dim=1)
+        else:
+            h = torch.cat([Z_t, f_t], dim=1)
 
         # 3. Pass concatenated vector 'h' to gating head and expert heads
         pi = F.softmax(self.gate_head(h) / self.gate_temperature, dim=-1)

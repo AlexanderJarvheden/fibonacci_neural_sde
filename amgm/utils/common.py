@@ -32,6 +32,21 @@ def calculate_fibLevels(price_window):
     ).astype(np.float32)
 
     return fib_levels, delta
+
+
+def calculate_movingAverages(price_window, window=20):
+    """Calculate a simple moving average using a single price window.
+    Args:
+        price_window (np.ndarray): Array of shape (sample_num, lookback_window).
+        window (int): Number of most recent days to average over.
+    Returns:
+        np.ndarray: Array of shape (sample_num, 1) containing the moving average for each sample.
+    """
+    effective_window = min(window, price_window.shape[1])
+    moving_average = price_window[:, -effective_window:].mean(axis=1, keepdims=True)
+
+    return moving_average.astype(np.float32)
+
     
 def calculate_fibLevels_multi_window(price_windows):
     """Selects dynamic lookback sub-window based on recent volatility dominance.

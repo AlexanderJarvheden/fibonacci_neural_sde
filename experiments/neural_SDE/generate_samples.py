@@ -40,7 +40,7 @@ def _load_model_checkpoint(checkpoint_path):
     if not isinstance(hparams, dict):
         raise RuntimeError("Cannot load checkpoint without hyper_parameters.")
 
-    model = NeuralSDERunner(**hparams, compile_model=False)
+    model = NeuralSDERunner(**{**hparams, "compile_model": False})
     state_dict = checkpoint.get("state_dict", {})
     if not isinstance(state_dict, dict):
         raise RuntimeError("Checkpoint state_dict is missing or invalid.")
@@ -85,7 +85,11 @@ def _compute_features(x_window):
     fib_levels, delta = common.calculate_fibLevels(x_window)
     x_t = x_window[:, -1:]
     features = (x_t - fib_levels) / np.maximum(delta, 1e-8)
-    return torch.from_numpy(features), fib_levels
+
+    moving_average = common.calculate_movingAverages(x_window, window=20)
+    ma_features = (x_t - moving_average) / np.maximum(delta, 1e-8)
+
+    return torch.from_numpy(features), fib_levels, torch.from_numpy(ma_features)
 
 def _compute_min_range(x_window):
     x_min = x_window.amin(dim=1, keepdim=True)
@@ -112,8 +116,8 @@ def _rollout_sde(model, batch, n_steps, dt, seed):
             x_min, x_range = _compute_min_range(x_window_original)
             x_window = (x_window_original - x_min) / x_range
 
-            f_t, _ = _compute_features(x_window)
-            mu, sigma, pi = model(x_window, f_t)
+            f_t, _, ma_t = _compute_features(x_window)
+            mu, sigma, pi = model(x_window, f_t, ma_t)
 
             noise = torch.randn(mu.shape, generator=gen, dtype=mu.dtype, device=mu.device)
             x_next_norm = x_window[:, -1:] + mu * dt + sigma * (dt ** 0.5) * noise

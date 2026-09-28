@@ -11,7 +11,7 @@ def get_trainer_cfg():
 
     run_cfg = dict(
         run_idx=1,
-        rng_seed=None,  # set an int for reproducible issue-id sampling; None gives a fresh subset each run
+        rng_seed=1580886929,  # set an int for reproducible issue-id sampling; None gives a fresh subset each run
         batch_size=256,
         num_workers=0,
         max_epochs=20,
@@ -37,6 +37,7 @@ def get_trainer_cfg():
         num_features=7,
         hidden_sizes=[32, 16],
         output_size=output_size,
+        num_ma_features=1
     )
     
     trainer_cfg = dict(

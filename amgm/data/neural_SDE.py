@@ -20,6 +20,7 @@ class NeuralSDESample(NamedTuple):
     sample_range: torch.Tensor
     features: torch.Tensor
     fib_levels: torch.Tensor
+    ma_features: torch.Tensor
     test_dates: Any
     issue_ids: Any
 
@@ -112,7 +113,7 @@ class NeuralSDEDataset(BaseAMData, Dataset):
         price_windows, nxt_prices, sample_min, sample_range = self._min_max_normalize(price_windows, nxt_prices)
         
         # Calculate features after normalizations
-        features, fib_levels = self.calculate_features(price_windows)
+        features, fib_levels, ma_features = self.calculate_features(price_windows)
         
         print(f"Price windows shape: {price_windows.shape}, Next prices shape: {nxt_prices.shape}, Features shape: {features.shape}")
         assert len(price_windows) == len(features)
@@ -123,6 +124,7 @@ class NeuralSDEDataset(BaseAMData, Dataset):
         self.sample_range = torch.from_numpy(sample_range)
         self.features = torch.from_numpy(features)
         self.fib_levels = torch.from_numpy(fib_levels)
+        self.ma_features = torch.from_numpy(ma_features)
         self.test_dates = test_dates
         self.issue_ids = iids
         
@@ -170,8 +172,11 @@ class NeuralSDEDataset(BaseAMData, Dataset):
         fib_levels, delta = common.calculate_fibLevels(price_windows)
         last_price = price_windows[:, -1:]
         features = (last_price - fib_levels) / np.maximum(delta, 1e-8)
+
+        moving_average = common.calculate_movingAverages(price_windows, window=20)
+        ma_features = (last_price - moving_average) / np.maximum(delta, 1e-8)
         
-        return features, fib_levels
+        return features, fib_levels, ma_features
 
     @staticmethod
     def _min_max_normalize(price_windows, nxt_prices):
@@ -194,6 +199,7 @@ class NeuralSDEDataset(BaseAMData, Dataset):
             sample_range=self.sample_range[idx],
             features=self.features[idx],
             fib_levels=self.fib_levels[idx],
+            ma_features=self.ma_features[idx],
             test_dates=self.test_dates[idx],
             issue_ids=self.issue_ids[idx]
         )
@@ -296,6 +302,7 @@ class SyntheticNeuralSDEDataset(Dataset):
             sample_range=self.sample_range[idx],
             features=self.features[idx],
             fib_levels=self.features[idx],  # we can use features as fib_levels placeholder
+            ma_features=self.features[idx],
             test_dates=self.test_dates[idx],
             issue_ids=f"synthetic_path{idx}",
         )

@@ -98,8 +98,8 @@ class NeuralSDERunner(LightningModule):
         if compile_model:
             self.model = torch.compile(self.model)
 
-    def forward(self, x_window, f_t):
-        return self.model(x_window, f_t)  # type: ignore[operator]
+    def forward(self, x_window, f_t, ma_t):
+        return self.model(x_window, f_t, ma_t)  # type: ignore[operator]
 
     def _step_nll(self, x_t, x_tp1, mu, sigma):
         sigma = sigma + self.eps        # eps for numerical stability
@@ -115,14 +115,15 @@ class NeuralSDERunner(LightningModule):
         x_window = batch.price_window   # x_window = X[t-w, ..., t]
         x_t = x_window[:, -1:]          # x_t = X[t]
         x_tp1 = batch.nxt_price         # x_tp1 = X[t+1]
-        f_t = batch.features         
+        f_t = batch.features    
+        ma_t = batch.ma_features     
         fib_levels = batch.fib_levels
 
-        return x_window, f_t, x_t, x_tp1, fib_levels
+        return x_window, f_t, ma_t, x_t, x_tp1, fib_levels
 
     def _compute_loss(self, batch, entropy_beta=None):
-        x_window, f_t, x_t, x_tp1, fib_levels = self._prepare_batch(batch)
-        mu, sigma, pi = self.forward(x_window, f_t)
+        x_window, f_t, ma_t, x_t, x_tp1, fib_levels = self._prepare_batch(batch)
+        mu, sigma, pi = self.forward(x_window, f_t, ma_t)
         sde_loss = self._step_nll(x_t, x_tp1, mu, sigma)
         
         # Calculate Categorical Entropy per sample: H(pi) = - \sum pi_i * log(pi_i + eps)
@@ -158,6 +159,7 @@ class NeuralSDERunner(LightningModule):
             "beta": beta,
             "x_window": x_window,
             "features": f_t,
+            "ma_features": ma_t,
             "x_t": x_t,
             "x_tp1": x_tp1,
             "x_tp1_pred": x_tp1_pred,
@@ -231,6 +233,7 @@ class NeuralSDERunner(LightningModule):
             "test_dates": batch.test_dates,
             "x_window": out["x_window"].detach().cpu(),
             "features": out["features"].detach().cpu(),
+            "ma_features": out["ma_features"].detach().cpu(),
             "x_t": out["x_t"].detach().cpu(),
             "x_tp1": out["x_tp1"].detach().cpu(),
             "x_tp1_pred": out["x_tp1_pred"].detach().cpu(),
