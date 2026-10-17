@@ -80,14 +80,19 @@ def _build_dataset(dset_cfg, seed, batch_size):
 
     return dataset, batch, seed
 
-def _compute_features(x_window):
+def _compute_features(x_window, x_window_original):
     x_window = x_window.detach().cpu().numpy()
     fib_levels, delta = common.calculate_fibLevels(x_window)
     x_t = x_window[:, -1:]
     features = (x_t - fib_levels) / np.maximum(delta, 1e-8)
 
-    moving_average = common.calculate_movingAverages(x_window, window=20)
-    ma_features = (x_t - moving_average) / np.maximum(delta, 1e-8)
+    real_prices = x_window_original.detach().cpu().numpy()
+    real_last = real_prices[:, -1:]
+    real_ma = common.calculate_movingAverages(real_prices, window=20)
+    ma_features = (real_last - real_ma) / np.maximum(real_ma, 1e-8)
+
+    vol_features = common.calculate_logReturnVolatility(real_prices, window=21)
+    ma_features = np.concatenate([ma_features, vol_features], axis=1)
 
     return torch.from_numpy(features), fib_levels, torch.from_numpy(ma_features)
 
@@ -116,7 +121,7 @@ def _rollout_sde(model, batch, n_steps, dt, seed):
             x_min, x_range = _compute_min_range(x_window_original)
             x_window = (x_window_original - x_min) / x_range
 
-            f_t, _, ma_t = _compute_features(x_window)
+            f_t, _, ma_t = _compute_features(x_window, x_window_original)
             mu, sigma, pi = model(x_window, f_t, ma_t)
 
             noise = torch.randn(mu.shape, generator=gen, dtype=mu.dtype, device=mu.device)
