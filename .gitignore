@@ -192,3 +192,8 @@ cython_debug/
 amgm/data/data-20250505
 
 *.pt
+# group 9 experiment data
+experiments/neural_SDE/group9/**/*.npy
+experiments/neural_SDE/group9/**/*.npz
+experiments/neural_SDE/group9/**/*.log
+Data/Synthetic/synthetic_rollout_paths_*_s?.csv
