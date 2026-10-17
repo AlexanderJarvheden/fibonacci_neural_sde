@@ -402,7 +402,13 @@ if __name__ == "__main__":
         "--trainer_cfg",
         help="Dotted module path (relative to this package) exposing get_trainer_cfg().",
     )
+    parser.add_argument("--share", type=float, default=synthetic_share_of_total,
+                        help="Share of synthetic training data: 0 = all real, 1 = all synthetic.")
+    parser.add_argument("--synthetic-name", default=neural_SDE_model_type,
+                        help="Reads Data/Synthetic/synthetic_rollout_paths_<name>.csv")
     args = parser.parse_args()
+    synthetic_share_of_total = args.share
+    neural_SDE_model_type = args.synthetic_name
 
     task = Path(__file__).stem.removeprefix("train_")
     cfg_path = f"trainer_cfg.{task}.{args.trainer_cfg}"
