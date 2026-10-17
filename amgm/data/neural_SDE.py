@@ -113,7 +113,7 @@ class NeuralSDEDataset(BaseAMData, Dataset):
         price_windows, nxt_prices, sample_min, sample_range = self._min_max_normalize(price_windows, nxt_prices)
         
         # Calculate features after normalizations
-        features, fib_levels, ma_features = self.calculate_features(price_windows)
+        features, fib_levels, ma_features = self.calculate_features(price_windows, sample_min, sample_range)
         
         print(f"Price windows shape: {price_windows.shape}, Next prices shape: {nxt_prices.shape}, Features shape: {features.shape}")
         assert len(price_windows) == len(features)
@@ -166,16 +166,21 @@ class NeuralSDEDataset(BaseAMData, Dataset):
             nxt_prices[i] = values[test_idx + 1]
         return price_windows, nxt_prices, test_dates
 
-    def calculate_features(self, price_windows):
+    def calculate_features(self, price_windows, sample_min, sample_range):
         """Calculate features for each price window, such as Fibonacci levels."""
         
         fib_levels, delta = common.calculate_fibLevels(price_windows)
         last_price = price_windows[:, -1:]
         features = (last_price - fib_levels) / np.maximum(delta, 1e-8)
 
-        moving_average = common.calculate_movingAverages(price_windows, window=20)
-        ma_features = (last_price - moving_average) / np.maximum(delta, 1e-8)
-        
+        real_prices = price_windows * np.reshape(sample_range, (-1, 1)) + np.reshape(sample_min, (-1, 1))
+        real_last = real_prices[:, -1:]
+        real_ma = common.calculate_movingAverages(real_prices, window=20)
+        ma_features = (real_last - real_ma) / np.maximum(real_ma, 1e-8)
+
+        vol_features = common.calculate_logReturnVolatility(real_prices, window=21)
+        ma_features = np.concatenate([ma_features, vol_features], axis=1)
+
         return features, fib_levels, ma_features
 
     @staticmethod

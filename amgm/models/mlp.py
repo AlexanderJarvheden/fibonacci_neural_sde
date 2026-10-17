@@ -179,6 +179,9 @@ class NeuralSDEMoE(nn.Module):
         self.lookback_window = lookback_window
         self.num_features = num_features
         self.num_ma_features = num_ma_features
+        if num_ma_features > 0:
+            self.register_buffer('ma_mean', torch.zeros(num_ma_features))
+            self.register_buffer('ma_std', torch.ones(num_ma_features))
 
         # Shared or independent backbone feature extractor
         layers = [nn.Linear(lookback_window, hidden_sizes[0]), nn.ReLU()]
@@ -239,7 +242,8 @@ class NeuralSDEMoE(nn.Module):
         # 2. Concatenate latent path vector with instantaneous normalized features
         #h = torch.cat([Z_t, f_t, ma_t], dim=1)  # Shape: (batch_size, hidden_dim + feature_dim)
         if self.num_ma_features > 0:
-            h = torch.cat([Z_t, f_t, ma_t], dim=1)
+            standardised_ma_features = (ma_t[:, :self.num_ma_features] - self.ma_mean) / self.ma_std
+            h = torch.cat([Z_t, f_t, standardised_ma_features], dim=1)
         else:
             h = torch.cat([Z_t, f_t], dim=1)
 

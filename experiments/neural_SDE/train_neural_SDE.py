@@ -107,6 +107,19 @@ def _format_validation_metrics(val_metrics):
 
     return "\n".join(lines)
 
+def _set_ma_standardisation(runner, train_set):
+    """Fill the model's feature average and spread from the training data only."""
+    models_with_ma_features = [module for module in runner.modules() if hasattr(module, "ma_mean")]
+    if not models_with_ma_features:
+        return
+    training_ma_features = train_set.dataset.ma_features[train_set.indices]
+    for model in models_with_ma_features:
+        feature_count = model.num_ma_features
+        model.ma_mean.copy_(training_ma_features[:, :feature_count].mean(dim=0).to(model.ma_mean.dtype))
+        model.ma_std.copy_(training_ma_features[:, :feature_count].std(dim=0).clamp_min(1e-8).to(model.ma_std.dtype))
+        print(f"MA features mean={model.ma_mean.tolist()}, std={model.ma_std.tolist()}")
+
+
 def main(trainer_cfg, save_rollout_plots, model_type):
 
     # Suppress Lightning warning about num_workers=0
@@ -149,12 +162,13 @@ def main(trainer_cfg, save_rollout_plots, model_type):
 
     mdl = NeuralSDERunner(**trainer_cfg)
     train_loader, val_loader, is_synthetic_dataset, seed = _build_dataloaders(dset_cfg, batch_size, seed)
+    _set_ma_standardisation(mdl, train_loader.dataset)
     print(f"Using rng_seed={seed}")
 
     trainer = Trainer(
         max_epochs=run_cfg["max_epochs"],
         check_val_every_n_epoch=1,
-        logger=False,
+        logger=logger,
         accelerator="cpu",
         callbacks=[checkpoint_callback]
     )

@@ -47,6 +47,7 @@ def calculate_movingAverages(price_window, window=20):
 
     return moving_average.astype(np.float32)
 
+
     
 def calculate_fibLevels_multi_window(price_windows):
     """Selects dynamic lookback sub-window based on recent volatility dominance.
@@ -806,3 +807,10 @@ def sanity_check_path(synthetic_path, max_mult: float = 4.0, min_mult: float = 0
         return False
 
     return True
+
+def calculate_logReturnVolatility(price_window, window=21):
+    """Standard deviation of daily log returns over the most recent window, on real prices."""
+    effective_window = min(window, price_window.shape[1] - 1)
+    recent_prices = np.maximum(price_window[:, -(effective_window + 1):], 1e-8)
+    log_returns = np.diff(np.log(recent_prices), axis=1)
+    return log_returns.std(axis=1, keepdims=True).astype(np.float32)
